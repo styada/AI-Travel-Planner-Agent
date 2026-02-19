@@ -1,4 +1,5 @@
 .PHONY start
 
 start:
-	python uvicorn main:app --reload
+	echo "Starting the AI Travel Planner Agent..."
+	poetry run uvicorn src.app.main:app --reload

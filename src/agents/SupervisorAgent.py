@@ -46,6 +46,7 @@ Rules:
 - Never make up or assume values for missing fields
 """
 
+
 def collect_info_node(state: TripState) -> dict:
     """
     Extracts trip details from conversation.
@@ -132,6 +133,7 @@ AGENTS = [
     ("transportation_agent", transportation_agent),
 ]
 
+
 def dispatch_node(state: TripState) -> dict:
     research_updates = {}
     failed = []
@@ -216,3 +218,43 @@ TRANSPORTATION:
         "next_step": "done",
         "messages": [AIMessage(content=response.content)]
     }
+
+    
+def route_after_collection(state: TripState) -> str:
+    if state.next_step == "dispatch":
+        return "dispatch"
+    return "collect_info"
+
+    
+def build_graph():
+    graph = StateGraph(TripState)
+
+    # Register all nodes
+    graph.add_node("collect_info", collect_info_node)
+    graph.add_node("dispatch", dispatch_node)
+    graph.add_node("synthesis", synthesis_node)
+
+    # Entry point — always start at collect_info
+    graph.add_edge(START, "collect_info")
+
+    # After collect_info — conditional routing
+    graph.add_conditional_edges(
+        "collect_info",          # from this node
+        route_after_collection,  # run this function to decide
+        {
+            "collect_info": "collect_info",  # if it returns "collect_info" → loop back
+            "dispatch": "dispatch"           # if it returns "dispatch" → move forward
+        }
+    )
+
+    # After dispatch — always go to synthesis
+    graph.add_edge("dispatch", "synthesis")
+
+    # After synthesis — done
+    graph.add_edge("synthesis", END)
+
+    return graph.compile()
+
+
+# Module level graph instance
+travel_graph = build_graph()
