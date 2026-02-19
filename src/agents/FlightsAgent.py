@@ -1,11 +1,7 @@
-import os
-
-from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_ollama import ChatOllama
 from pydantic import BaseModel, Field
 from models.ResearchResults import FlightOption
 from models.TripState import TripState
-from tools.web_search_tool import web_search_tool
+from tools.data_extraction_tool import extract_with_retry
 
 
 class FlightResults(BaseModel):
@@ -14,11 +10,8 @@ class FlightResults(BaseModel):
     )
     
 
-_llm = ChatOllama(model=os.getenv("OLLAMA_TEXT_MODEL"), temperature=0)
-
-_structured_llm = _llm.with_structured_output(FlightResults) # Super fucking cool btw
-
 SYSTEM_PROMPT = """
+    You are a flight research specialist.
     You will be given raw web search results about flights.
     Extract concrete flight options from the results and return them.
 
@@ -32,7 +25,6 @@ SYSTEM_PROMPT = """
 
 def flights_agent(state: TripState) -> dict:
     req = state.trip_request
-    
     query = {
         f"""
         Find flights from {req.origin} to {req.destination}
@@ -41,15 +33,12 @@ def flights_agent(state: TripState) -> dict:
         """
     }
     
-    raw_response = web_search_tool(query)
-    
-    structured_response: FlightResults = _structured_llm.invoke([
-        SystemMessage(content=SYSTEM_PROMPT),
-        HumanMessage(content=f"Extract flight options from these search results:\n\n{raw_response}")
-    ])
-    
-    return{
-        "research": {
-            "flights": [f.model_dump() for f in structured_response.flights]
-        }
-    }
+    result = extract_with_retry(
+        query=query,
+        system_prompt=SYSTEM_PROMPT,
+        output_schema=FlightResults,
+        is_good_result=lambda r: bool(r.flights) and any(f.price > 0 for f in r.flights)
+    )
+
+    flights = [f.model_dump() for f in result.flights] if result else []
+    return {"research": {"flights": flights}}
