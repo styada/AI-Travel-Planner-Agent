@@ -1,1 +1,1 @@
-from src.tools.web_search_tool import search_web
+from src.tools.web_search_tool import web_search_tool

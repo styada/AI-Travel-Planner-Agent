@@ -2,7 +2,7 @@ from langchain_community.tools import DuckDuckGoSearchRun
 
 _search = DuckDuckGoSearchRun()
 
-def search_web(query: str) -> str:
+def web_search_tool(query: str) -> str:
     """Perform a web search using DuckDuckGo and return the results."""
     try:
         results = _search.run(query)
