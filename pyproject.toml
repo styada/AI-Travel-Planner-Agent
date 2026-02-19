@@ -15,10 +15,12 @@ langchain-ollama = "*"
 langchain-google-genai = "*"
 langchain-community = "*"
 duckduckgo-search = "*"
+ddgs = "*"
 pydantic = "*"
 python-dotenv = "*"
 fastapi = "^0.129.0"
 uvicorn = "^0.41.0"
+certifi = "^2026.1.4"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

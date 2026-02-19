@@ -1,4 +1,4 @@
-.PHONY start
+.PHONY: start
 
 start:
 	echo "Starting the AI Travel Planner Agent..."

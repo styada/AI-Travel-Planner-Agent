@@ -1,7 +1,10 @@
+import logging
 from pydantic import BaseModel, Field
-from models.ResearchResults import RestaurantOption
-from models.TripState import TripState
-from tools.data_extraction_tool import extract_with_retry
+from src.models.ResearchResults import RestaurantOption
+from src.models.TripState import TripState
+from src.tools.data_extraction_tool import extract_with_retry
+
+logger = logging.getLogger(__name__)
 
 
 class RestaurantResults(BaseModel):

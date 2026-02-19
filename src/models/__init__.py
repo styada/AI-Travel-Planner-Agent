@@ -1,3 +1,3 @@
-from models.ResearchResults import ResearchResults
-from models.TripRequest import TripRequest
-from models.TripState import TripState
+from .ResearchResults import ResearchResults
+from .TripRequest import TripRequest
+from .TripState import TripState

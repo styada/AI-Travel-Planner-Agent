@@ -2,7 +2,8 @@ from typing import Optional
 from pydantic import BaseModel, Field
 from typing_extensions import Annotated
 from langgraph.graph.message import add_messages
-from models import ResearchResults, TripRequest
+from .ResearchResults import ResearchResults
+from .TripRequest import TripRequest
 
 
 class TripState(BaseModel):

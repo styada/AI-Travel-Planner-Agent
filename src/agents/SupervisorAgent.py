@@ -1,6 +1,7 @@
 import json
 import os
-from langchain_ollama import ChatOllama
+import logging
+from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langgraph.graph import StateGraph, START, END
@@ -15,6 +16,10 @@ from src.agents.ActivitiesAgent import activities_agent
 from src.agents.EventsAgent import events_agent
 from src.agents.TransportationAgent import transportation_agent
 
+# Configure logging
+logger = logging.getLogger(__name__)
+load_dotenv()
+
 """
 SupervisorAgent is responsible for orchestrating the entire trip planning process.
 It will call the various research agents (flights, hotels, restaurants, activities, events, transportation)
@@ -23,9 +28,14 @@ It will also manage the state of the trip planning process and ensure that all n
 is collected before moving to the next step.    
 """
 
-# LLMs
-_collection_llm = ChatOllama(model=os.getenv("OLLAMA_TEXT_MODEL"), temperature=0)
-_synthesis_llm = ChatGoogleGenerativeAI(model=os.getenv("GOOGLE_GEMINI_MODEL"), temperature=0.3)
+# LLMs - lazy loaded
+def get_collection_llm():
+    logger.debug("Initializing collection LLM (Google Gemini - temperature=0)")
+    return ChatGoogleGenerativeAI(model=os.getenv("GOOGLE_GEMINI_MODEL"), temperature=0)
+
+def get_synthesis_llm():
+    logger.debug("Initializing synthesis LLM (Google Gemini - temperature=0.3)")
+    return ChatGoogleGenerativeAI(model=os.getenv("GOOGLE_GEMINI_MODEL"), temperature=0.3)
 
 
 COLLECTION_PROMPT = """You are a friendly travel planning assistant.
@@ -52,10 +62,14 @@ def collect_info_node(state: TripState) -> dict:
     Extracts trip details from conversation.
     Loops until all required fields are present.
     """
+    logger.info("collect_info_node: Starting information collection")
     messages = state.messages
+    logger.debug(f"collect_info_node: Current message count: {len(messages)}")
 
     # Try to extract whatever the user has given us so far
-    extraction_response = _collection_llm.invoke([
+    llm = get_collection_llm()
+    logger.debug("collect_info_node: Invoking LLM to extract travel details")
+    extraction_response = llm.invoke([
         SystemMessage(content="""Extract travel details from this conversation.
             Return ONLY valid JSON with these exact keys, use null for missing fields:
             {
@@ -76,16 +90,20 @@ def collect_info_node(state: TripState) -> dict:
         if "```" in raw:
             raw = raw.split("```")[1].replace("json", "").strip()
         data = json.loads(raw)
+        logger.debug(f"collect_info_node: Extracted data: {data}")
     except json.JSONDecodeError:
         # Model didn't return valid JSON — just keep the conversation going
+        logger.warning("collect_info_node: LLM response was not valid JSON")
         data = {}
 
     # Check what's still missing
     required = ["origin", "destination", "num_people", "start_date", "end_date", "budget_per_person"]
     missing = [f for f in required if not data.get(f)]
+    logger.info(f"collect_info_node: Missing fields: {missing}")
 
     if not missing:
         # Everything is here — build the validated TripRequest
+        logger.info("collect_info_node: All required fields collected, creating TripRequest")
         trip_request = TripRequest(
             origin=data["origin"],
             destination=data["destination"],
@@ -95,8 +113,10 @@ def collect_info_node(state: TripState) -> dict:
             budget_per_person=float(data["budget_per_person"]),
             interests=data.get("interests")
         )
+        logger.info(f"collect_info_node: Trip request created - {trip_request}")
 
-        confirm = _collection_llm.invoke([
+        logger.debug("collect_info_node: Invoking LLM for confirmation message")
+        confirm = llm.invoke([
             SystemMessage(content=COLLECTION_PROMPT),
             *messages,
             HumanMessage(content=f"Confirm these trip details back to the user warmly and tell them you're starting research: {data}")
@@ -111,7 +131,8 @@ def collect_info_node(state: TripState) -> dict:
 
     else:
         # Ask for only the missing fields
-        response = _collection_llm.invoke([
+        logger.debug(f"collect_info_node: Asking for missing fields: {missing}")
+        response = llm.invoke([
             SystemMessage(content=COLLECTION_PROMPT),
             *messages,
             HumanMessage(content=f"These fields are still missing: {missing}. Ask the user for them naturally.")
@@ -135,15 +156,26 @@ AGENTS = [
 
 
 def dispatch_node(state: TripState) -> dict:
+    logger.info("dispatch_node: Starting agent dispatch")
     research_updates = {}
     failed = []
 
     for name, agent_fn in AGENTS:
-        print(f"Running {name}...")
-        result = agent_fn(state)
-        research_updates.update(result.get("research", {}))
-        failed.extend(result.get("failed_agents", []))
+        logger.info(f"dispatch_node: Running {name}")
+        try:
+            result = agent_fn(state)
+            research_updates.update(result.get("research", {}))
+            failed_this_run = result.get("failed_agents", [])
+            if failed_this_run:
+                logger.warning(f"dispatch_node: {name} reported failures: {failed_this_run}")
+                failed.extend(failed_this_run)
+            else:
+                logger.debug(f"dispatch_node: {name} completed successfully")
+        except Exception as e:
+            logger.error(f"dispatch_node: {name} failed with exception: {str(e)}", exc_info=True)
+            failed.append(name)
 
+    logger.info(f"dispatch_node: Agent dispatch complete. Failed agents: {failed}")
     return {
         "research": research_updates,
         "failed_agents": failed
@@ -174,6 +206,7 @@ Rules:
 
 
 def synthesis_node(state: TripState) -> dict:
+    logger.info("synthesis_node: Starting synthesis of trip plan")
     req = state.trip_request
     research = state.research
 
@@ -208,10 +241,15 @@ TRANSPORTATION:
 {research.transportation_options if research.transportation_options else 'No data'}
 """
 
-    response = _synthesis_llm.invoke([
+    logger.debug("synthesis_node: Invoking synthesis LLM to create final trip plan")
+    synthesis_llm = get_synthesis_llm()
+    response = synthesis_llm.invoke([
         SystemMessage(content=SYNTHESIS_PROMPT),
         HumanMessage(content=research_context)
     ])
+    
+    logger.info("synthesis_node: Trip plan synthesis complete")
+    logger.debug(f"synthesis_node: Final plan length: {len(response.content)} characters")
 
     return {
         "final_plan": response.content,
@@ -253,7 +291,7 @@ def build_graph():
     # After synthesis — done
     graph.add_edge("synthesis", END)
 
-    return graph.compile()
+    return graph.compile()  # allow interruption only during info collection
 
 
 # Module level graph instance
