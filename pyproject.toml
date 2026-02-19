@@ -17,6 +17,8 @@ langchain-community = "*"
 duckduckgo-search = "*"
 pydantic = "*"
 python-dotenv = "*"
+fastapi = "^0.129.0"
+uvicorn = "^0.41.0"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
