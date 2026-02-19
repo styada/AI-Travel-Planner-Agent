@@ -28,19 +28,21 @@ SYSTEM_PROMPT = """
 
 def hotels_agent(state: TripState) -> dict:
     req = state.trip_request
-    query = {
-        f"""
+    query = f"""
         Find accommodations in {req.destination}. Look for Hotels, well-rated hostels, and Airbnbs that are available around {req.start_date} to {req.end_date}.
         show a range of prices and options, and include booking URLs if available.
         """
-    }
     
     result = extract_with_retry(
         query=query,
         system_prompt=SYSTEM_PROMPT,
         output_schema=HotelResults,
-        is_good_result=lambda r: bool(r.hotels) and any(f.price > 0 for f in r.hotels)
+        is_good_result=lambda r: bool(r.hotels) and any(f.price > 0 for f in r.hotels),
+        agent_name="HotelsAgent"
     )
 
     hotels = [f.model_dump() for f in result.hotels] if result else []
-    return {"research": {"hotels": hotels}}
+    return {"research": {
+        "hotels": hotels},
+        "failed_agents": state.failed_agents + ([result.agent_name] if not result.success else [])
+    }

@@ -28,21 +28,25 @@ SYSTEM_PROMPT = """
 
 def transportation_agent(state: TripState) -> dict:
     req = state.trip_request
-    query = {
-        f"""
+    query = f"""
         Find local transportation options in {req.destination}.
         Look for public transportation (metro, buses, trains), taxis, rideshare services, and other transit options.
         Include pricing, routes, schedules, and booking URLs if available.
         Focus on transportation within the city and options for getting around during the trip.
+        Look for options that are suitable for a group of {req.num_people} people. 
+        If not, just provide general transportation options available in the city.
         """
-    }
     
     result = extract_with_retry(
         query=query,
         system_prompt=SYSTEM_PROMPT,
         output_schema=TransportationResults,
-        is_good_result=lambda r: bool(r.transportation_options) and any(f.type for f in r.transportation_options)
+        is_good_result=lambda r: bool(r.transportation_options) and any(f.type for f in r.transportation_options),
+        agent_name="TransportationAgent"
     )
 
     transportation = [f.model_dump() for f in result.transportation_options] if result else []
-    return {"research": {"transportation": transportation}}
+    return {"research": {
+        "transportation": transportation},
+        "failed_agents": state.failed_agents + ([result.agent_name] if not result.success else [])
+    }

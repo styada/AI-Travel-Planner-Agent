@@ -25,20 +25,22 @@ SYSTEM_PROMPT = """
 
 def flights_agent(state: TripState) -> dict:
     req = state.trip_request
-    query = {
-        f"""
+    query = f"""
         Find flights from {req.origin} to {req.destination}
         departing around {req.start_date} and returning around {req.end_date}
         show a range of prices and airlines, and include booking URLs if available.
         """
-    }
     
     result = extract_with_retry(
         query=query,
         system_prompt=SYSTEM_PROMPT,
         output_schema=FlightResults,
-        is_good_result=lambda r: bool(r.flights) and any(f.price > 0 for f in r.flights)
+        is_good_result=lambda r: bool(r.flights) and any(f.price > 0 for f in r.flights),
+        agent_name="FlightsAgent"
     )
 
     flights = [f.model_dump() for f in result.flights] if result else []
-    return {"research": {"flights": flights}}
+    return {"research": {
+        "flights": flights},
+        "failed_agents": state.failed_agents + ([result.agent_name] if not result.success else [])
+    }

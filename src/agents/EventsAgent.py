@@ -27,20 +27,22 @@ SYSTEM_PROMPT = """
 
 def events_agent(state: TripState) -> dict:
     req = state.trip_request
-    query = {
-        f"""
+    query = f"""
         Find events and entertainment happening in {req.destination} between {req.start_date} and {req.end_date}.
         Look for concerts, shows, theater performances, festivals, exhibitions, and other entertainment options.
         Include booking URLs, ticket prices, and event timings.
         """
-    }
     
     result = extract_with_retry(
         query=query,
         system_prompt=SYSTEM_PROMPT,
         output_schema=EventResults,
-        is_good_result=lambda r: bool(r.events) and any(f.location for f in r.events)
+        is_good_result=lambda r: bool(r.events) and any(f.location for f in r.events),
+        agent_name="EventsAgent"
     )
 
     events = [f.model_dump() for f in result.events] if result else []
-    return {"research": {"events": events}}
+    return {
+        "research": {"events": events}, 
+        "failed_agents": state.failed_agents + ([result.agent_name] if not result.success else [])
+    }

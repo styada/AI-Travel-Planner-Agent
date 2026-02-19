@@ -13,6 +13,7 @@ class TripState(BaseModel):
     next_step: str = "collect_info"
     final_plan: Optional[str] = None      # narrative summary for reading
     budget_breakdown: dict = Field(default_factory=dict)  # computed totals
+    failed_agents: list[str] = Field(default_factory=list)  # track which agents have failed
 
     class Config:
         arbitrary_types_allowed = True

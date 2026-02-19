@@ -27,21 +27,23 @@ SYSTEM_PROMPT = """
 
 def restaurants_agent(state: TripState) -> dict:
     req = state.trip_request
-    query = {
-        f"""
+    query = f"""
         Find highly-rated restaurants in {req.destination}.
-        Look for a variety of cuisine types and price ranges suitable for a group of {req.group_size} people.
+        Look for a variety of cuisine types and price ranges suitable for a group of {req.num_people} people.
         Include upscale dining, casual restaurants, and local favorites.
         Include reservation URLs if available, and recommended dishes.
         """
-    }
     
     result = extract_with_retry(
         query=query,
         system_prompt=SYSTEM_PROMPT,
         output_schema=RestaurantResults,
-        is_good_result=lambda r: bool(r.restaurants) and any(f.location for f in r.restaurants)
+        is_good_result=lambda r: bool(r.restaurants) and any(f.location for f in r.restaurants),
+        agent_name="RestaurantsAgent"
     )
 
     restaurants = [f.model_dump() for f in result.restaurants] if result else []
-    return {"research": {"restaurants": restaurants}}
+    return {"research": {
+        "restaurants": restaurants},
+        "failed_agents": state.failed_agents + ([result.agent_name] if not result.success else [])
+    }

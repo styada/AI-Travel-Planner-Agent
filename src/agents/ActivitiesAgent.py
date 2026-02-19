@@ -28,20 +28,22 @@ SYSTEM_PROMPT = """
 
 def activities_agent(state: TripState) -> dict:
     req = state.trip_request
-    query = {
-        f"""
-        Find popular activities, tours, and attractions in {req.destination} suitable for a group of {req.group_size} people.
+    query = f"""
+        Find popular activities, tours, and attractions in {req.destination} suitable for a group of {req.num_people} people.
         Include museums, historical sites, outdoor activities, guided tours, adventure activities, and cultural experiences.
         Include pricing, duration, booking URLs, and operating hours.
         """
-    }
     
     result = extract_with_retry(
         query=query,
         system_prompt=SYSTEM_PROMPT,
         output_schema=ActivityResults,
-        is_good_result=lambda r: bool(r.activities) and any(f.location for f in r.activities)
+        is_good_result=lambda r: bool(r.activities) and any(f.location for f in r.activities),
+        agent_name="ActivitiesAgent"
     )
 
     activities = [f.model_dump() for f in result.activities] if result else []
-    return {"research": {"activities": activities}}
+    return {"research": {
+        "activities": activities},
+        "failed_agents": state.failed_agents + ([result.agent_name] if not result.success else [])
+    }
