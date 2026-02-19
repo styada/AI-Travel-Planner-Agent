@@ -63,7 +63,7 @@ class RestaurantOption(BaseModel):
     closing_hours: Optional[str] = None  # Closing hours for the restaurant, optional as it may not always be provided
     
     
-class TransporationOption(BaseModel):
+class TransportationOption(BaseModel):
     type: str # Train, Bus, Metro, Taxi, Rideshare, etc
     price: Optional[float] = None
     duration: Optional[str] = None
@@ -82,4 +82,4 @@ class ResearchResults(BaseModel):
     restaurants: list[RestaurantOption] = []
     activities: list[ActivityOption] = []
     events: list[EventOption] = []
-    transportation_options: list[TransporationOption] = []
+    transportation_options: list[TransportationOption] = []

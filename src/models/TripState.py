@@ -1,8 +1,7 @@
 from typing import Optional
-from pydantic.v1 import Field
+from pydantic import BaseModel, Field
 from typing_extensions import Annotated
-from langgraph.graph import add_messages
-from pydantic import BaseModel
+from langgraph.graph.message import add_messages
 from models import ResearchResults, TripRequest
 
 
